@@ -20,7 +20,8 @@ def load_images(directory):
         image = skimage.io.imread(imagefile)
         sinogram[i] = image[x // 2]
 
-    return sinogram, images
+    # Last scan angle == first scan angle, so we drop the last scan
+    return sinogram[:-1], images
 
 
 if __name__ == '__main__':
@@ -36,9 +37,9 @@ if __name__ == '__main__':
     plt.imshow(first_image, cmap='gray')
     plt.show()
 
-    # Last scan angle == first scan angle, so we drop the last.
-    scanned_angles = first_image.shape[0] - 1
-    scan_width = first_image.shape[1]
+
+    scanned_angles = sinogram.shape[0]
+    scan_width = sinogram.shape[1]
 
 
     # Work in progres
