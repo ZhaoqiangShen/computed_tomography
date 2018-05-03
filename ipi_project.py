@@ -41,8 +41,6 @@ if __name__ == '__main__':
     scan_width = first_image.shape[1]
 
 
-    proj_angles = np.linspace(0, (scanned_angles -1.0)*2.0*np.pi / scanned_angles, scanned_angles)
-
     # Work in progres
     n_iter = 5
     vol_geom = astra.create_vol_geom(scan_width, scan_width)
