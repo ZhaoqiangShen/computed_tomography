@@ -5,6 +5,7 @@ import skimage.io
 import matplotlib.pyplot as plt
 import re
 import astra
+import pylab
 
 
 def load_images(directory):
@@ -20,13 +21,15 @@ def load_images(directory):
         image = skimage.io.imread(imagefile)
         sinogram[i] = image[x // 2]
 
+        
+        
     # Last scan angle == first scan angle, so we drop the last scan
     return sinogram[:-1], images
 
 
 if __name__ == '__main__':
 
-    scans_directory = '/mnt/datasets1/fgustafsson/cwi_ct_scan/wooden_block/'
+    scans_directory = '/export/scratch1/bossema/IPI_Project/wooden_block'
     sinogram, images = load_images(scans_directory)
 
     plt.imshow(sinogram, cmap='gray')
@@ -41,14 +44,18 @@ if __name__ == '__main__':
     scanned_angles = sinogram.shape[0]
     scan_width = sinogram.shape[1]
 
-
-    # Work in progres
-    n_iter = 5
+#%%
+    # Work in progress
+    n_iter = 100
     vol_geom = astra.create_vol_geom(scan_width, scan_width)
     proj_angles = np.linspace(0, (scanned_angles -1.0)*2.0*np.pi / scanned_angles, scanned_angles)
-    print(proj_angles[0])
-    print(proj_angles[-1])
+    #print(proj_angles[0])
+    #print(proj_angles[-1])
+    
     proj_geom = astra.create_proj_geom('fanflat', 1.0, scan_width, proj_angles, 313.0, 498.0)
     proj_id = astra.create_projector('strip_fanflat', proj_geom, vol_geom)
     W = astra.OpTomo(proj_id)
-    f_inv  = W.reconstruct('SIRT', sinogram, iterations=n_iter,extraOptions={'MinConstraint':0.0})
+    #f_inv  = W.reconstruct('SIRT_CUDA', sinogram, iterations=n_iter,extraOptions={'MinConstraint':0.0})
+    f_inv  = W.reconstruct('FBP', sinogram, extraOptions={'MinConstraint':0.0})
+    plt.figure(figsize = (10,10))
+    pylab.imshow(f_inv)
