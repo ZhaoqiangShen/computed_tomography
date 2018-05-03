@@ -42,4 +42,14 @@ if __name__ == '__main__':
 
 
     proj_angles = np.linspace(0, (scanned_angles -1.0)*2.0*np.pi / scanned_angles, scanned_angles)
-    
+
+    # Work in progres
+    n_iter = 5
+    vol_geom = astra.create_vol_geom(scan_width, scan_width)
+    proj_angles = np.linspace(0, (scanned_angles -1.0)*2.0*np.pi / scanned_angles, scanned_angles)
+    print(proj_angles[0])
+    print(proj_angles[-1])
+    proj_geom = astra.create_proj_geom('fanflat', 1.0, scan_width, proj_angles, 313.0, 498.0)
+    proj_id = astra.create_projector('strip_fanflat', proj_geom, vol_geom)
+    W = astra.OpTomo(proj_id)
+    f_inv  = W.reconstruct('SIRT', sinogram, iterations=n_iter,extraOptions={'MinConstraint':0.0})
