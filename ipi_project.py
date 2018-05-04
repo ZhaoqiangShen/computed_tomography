@@ -8,7 +8,12 @@ import astra
 import pylab
 
 
-def load_images(directory):
+def get_scan_image_dimension(directory):
+    one_scan = glob.glob(directory + '/scan*.tif')[0]
+    return skimage.io.imread(one_scan).shape
+
+
+def load_images(directory, slice_at):
     images = glob.glob(directory + '/scan*.tif')
     # Make sure we process the files in the same order they where scanned.
     images.sort(key=lambda f: int(re.search(r'scan_([0-9]+).tif', f).group(1)))
@@ -16,21 +21,54 @@ def load_images(directory):
     first_image = skimage.io.imread(images[0])
     x, y = first_image.shape
     sinogram = np.zeros((len(images), y))
-    
+
     for i, imagefile in enumerate(images):
         image = skimage.io.imread(imagefile)
-        sinogram[i] = image[x // 2]
+        sinogram[i] = image[slice_at]
 
-        
+    def load_averaged_flatfield():
+        flatfield_images = glob.glob(directory + 'io*.tif')
+        avg_flatfield = np.zeros((1, y))
+
+        for imagefile in flatfield_images:
+            image = skimage.io.imread(imagefile)
+            avg_flatfield += image[slice_at]
+
+        avg_flatfield = avg_flatfield / len(flatfield_images)
+        # Extract middle
+        return avg_flatfield
+
+    def load_darkfield():
+        return skimage.io.imread(os.path.join(directory, 'di000000.tif'))[slice_at]
+
+    def preprocess_sinogram(sinogram, avg_flatfield, darkfield):
+        return np.log((avg_flatfield - darkfield)/(sinogram - darkfield))
+
+    avg_flatfield = load_averaged_flatfield()
+    darkfield = load_darkfield()
+    
+    preprocessed_sinogram = preprocess_sinogram(sinogram, avg_flatfield, darkfield)
         
     # Last scan angle == first scan angle, so we drop the last scan
-    return sinogram[:-1], images
+    return preprocessed_sinogram[:-1], images
 
+
+def load_cached_sinogram(filename):
+    return np.load(filename)
 
 if __name__ == '__main__':
 
-    scans_directory = '/export/scratch1/bossema/IPI_Project/wooden_block'
-    sinogram, images = load_images(scans_directory)
+    scans_directory = '/mnt/datasets1/fgustafsson/cwi_ct_scan/wooden_block_upright/'
+
+    x,y = get_scan_image_dimension(scans_directory)
+
+    # Load sinogram from the slice in the middle 
+    sinogram, images = load_images(scans_directory, slice_at=x // 2)
+    np.save("wooden_sinogram.npy", sinogram)
+
+    
+    
+    load_cached_sinogram = load_cached_sinogram("wooden_sinogram.npy")
 
     plt.imshow(sinogram, cmap='gray')
     plt.show()
@@ -58,4 +96,5 @@ if __name__ == '__main__':
     #f_inv  = W.reconstruct('SIRT_CUDA', sinogram, iterations=n_iter,extraOptions={'MinConstraint':0.0})
     f_inv  = W.reconstruct('FBP', sinogram, extraOptions={'MinConstraint':0.0})
     plt.figure(figsize = (10,10))
-    pylab.imshow(f_inv)
+    plt.imshow(f_inv, cmap='gray')
+    plt.show()
