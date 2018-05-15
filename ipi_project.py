@@ -127,3 +127,5 @@ if __name__ == '__main__':
     plt.imshow(f_inv, cmap='gray')
     plt.imsave("reconstructed.png", f_inv, cmap='gray')
     plt.show()
+    
+    #Testcomment Francien
