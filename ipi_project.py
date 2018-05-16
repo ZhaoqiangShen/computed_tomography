@@ -128,4 +128,4 @@ if __name__ == '__main__':
     plt.imsave("reconstructed.png", f_inv, cmap='gray')
     plt.show()
     
-    #Testcomment Francien
+    #Testcomment Francien number 2 (workcomp)
