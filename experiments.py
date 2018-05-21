@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import collections
 import itertools
 
+from cvxpy import *
+
+
 def plot_polar_angles(projection_angles, max_range):
     ax = plt.gca()
 
@@ -19,16 +22,13 @@ def plot_polar_angles(projection_angles, max_range):
 
 def sinogram_degredation(sinogram, projection_angles):
 
-    """
-    Experiment:
+    # Intrested in how the reconstruct degrades as projections are removed.
 
-    We want to investigate how a reconstruction decays when projections are removed.
+    # In this experiment we start of with using all projection data.
+    # Contigious chunks of projection angles are left out and when doing the reconstruction.
 
-
-    We will remove projection in segments of size of n.
-
-    """
-
+    # We want to find out if all projection contribute equally to the reconstrction.
+    
     sirt_iter = 300
     full_reconstruction = ipi.reconstruct_image_sirt(projection_angles,
                                                      sinogram,
@@ -38,8 +38,6 @@ def sinogram_degredation(sinogram, projection_angles):
     results = list()
     stepsize = 10
     for p in range(stepsize, sinogram.shape[0], stepsize):
-
-
         sub_sinogram = sinogram[prev:p, :]
         sub_projection_angles = projection_angles[prev:p]
 
@@ -60,7 +58,33 @@ def sinogram_degredation(sinogram, projection_angles):
     plt.show()
 
 
-def best_sparse_approximation(sinogram, projection_angles, sparse_s):
+def one_angle_reconstruction(sinogram, angle_to_duplicate, verbose=False):
+
+    all_same_sinogram = np.tile(sinogram[angle_to_duplicate], (sinogram.shape[0], 1))
+
+    x = all_same_sinogram.shape[0]
+
+    proj_angles = np.linspace(0, (x-1)*2.0*np.pi/x, x)
+
+    n_iter = 500
+    reconstructed = ipi.reconstruct_image_sirt(proj_angles, all_same_sinogram, n_iter)
+
+    if verbose:
+        plt.imshow(reconstructed, cmap='gray')
+        plt.show()
+    
+    return reconstructed
+    
+
+def best_sparse_approximation(sinogram, projection_angles, sparse_size, trials):
+
+    # Experiment to see how the reconstruction quality varies as we pick
+
+    # 1. Create baseline using all projection angles.
+    # 2. Take a random subset of projection angles of size 'sparse_size' and store the difference from the baseline.
+    # 3. Repeat this 'trials' number of times.
+
+    # In the end, plot the best and the worst reconstruction found.
 
     sirt_iter = 100
     full_reconstruction = ipi.reconstruct_image_sirt(projection_angles,
@@ -73,37 +97,29 @@ def best_sparse_approximation(sinogram, projection_angles, sparse_s):
     best_angles = np.zeros_like(projection_angles)
     worst_angles = np.zeros_like(projection_angles)
 
-    
     min_delta = 10000
     max_delta = -1.0
-    
-    x,y = sinogram.shape
-    trials = 250
+
+    x, y = sinogram.shape
     results = list()
     for k in range(trials):
-        sparse_subset = np.random.choice(x, sparse_s, replace=False)
-        reconstruction = ipi.reconstruct_image_sirt(projection_angles[sparse_subset],
-                                                    sinogram[sparse_subset, :],
+        sparse_sizeubset = np.random.choice(x, sparse_size, replace=False)
+        reconstruction = ipi.reconstruct_image_sirt(projection_angles[sparse_sizeubset],
+                                                    sinogram[sparse_sizeubset, :],
                                                     sirt_iter)
         distance = ipi.dist(full_reconstruction, reconstruction)
 
         if distance > max_delta:
             max_delta = distance
-            worst_reconstruction = (sparse_subset, reconstruction)
-            #worst_angles[sparse_subset] +=  1.0/(0.01 + distance)
+            worst_reconstruction = (sparse_sizeubset, reconstruction)
         elif distance < min_delta:
             min_delta = distance
-            best_reconstruction = (sparse_subset, reconstruction)
-            #best_angles[sparse_subset] += 1.0/(0.01 + distance)
-        
-        
-        print(k, distance)
+            best_reconstruction = (sparse_sizeubset, reconstruction)
         results.append(distance)
-
 
     best_angles[best_reconstruction[0]] = 1.0
     worst_angles[worst_reconstruction[0]] = 1.0
-    
+
     results.sort()
 
     plt.subplot(231)
@@ -119,12 +135,15 @@ def best_sparse_approximation(sinogram, projection_angles, sparse_s):
 
     plt.subplot(236)
     plt.plot(results, 'o')
-    
+
     plt.show()
 
 
 def random_angle_selection(current_angles, sinogram):
 
+    # Randomized angle selection algorithm.
+    # Pick new a random angle that is not is the set of known angles.
+    
     max_index = sinogram.shape[0]
 
     while True:
@@ -135,41 +154,49 @@ def random_angle_selection(current_angles, sinogram):
         return new_angle
 
     
-def dynamic_midpoint(current_angles, sinogram):
-        intervals = []
+def gap_angle_selection(current_angles, sinogram):
 
-        x = sinogram.shape[0]
+    # Gap-angle selection algorithm from K.J Batenburg et al in
+    # Dynamic angle slection in binary tomography
 
-        projections = np.nonzero(current_angles)[0].tolist()
+    # Based on the current angles, a new angle is selected as the midpoint
+    # between the largest interval in the set of current angles.
+    
+    
+    intervals = []
 
-        # First and last points also creates one interval
-        x_0 = projections[0]
-        x_m = projections[-1]
+    x = sinogram.shape[0]
 
-        interval_width = x_0 + (x - x_m)
+    projections = np.nonzero(current_angles)[0].tolist()
 
-        # All other intervals are given by
-        # [x0, x1), [x1, x2), ..., [x_{m-1}, x_m)
+    # First and last points also creates one interval
+    x_0 = projections[0]
+    x_m = projections[-1]
 
-        intervals.append((x_m, x_0, interval_width))
+    interval_width = x_0 + (x - x_m)
+
+    # All other intervals are given by
+    # [x0, x1), [x1, x2), ..., [x_{m-1}, x_m)
+
+    intervals.append((x_m, x_0, interval_width))
         
-        # Normal intervals
-        prev = x_0
-        for p in range(1, len(projections)):
-            x_i = projections[p]
-            interval_width = x_i - prev
-            intervals.append((prev, x_i, interval_width))
-            prev = x_i
+    # Normal intervals
+    prev = x_0
+    for p in range(1, len(projections)):
+        x_i = projections[p]
+        interval_width = x_i - prev
+        intervals.append((prev, x_i, interval_width))
+        prev = x_i
 
-        intervals.sort(key=lambda x: x[2], reverse=True)
+    intervals.sort(key=lambda x: x[2], reverse=True)
 
-        widest = intervals[0][2]
-        last_index = 0
-        # Find all intervals that has the widest width
-        for i, interval in enumerate(intervals):
-            if widest > interval[2]:
-                break
-            last_index = i
+    widest = intervals[0][2]
+    last_index = 0
+    # Find all intervals that has the widest width
+    for i, interval in enumerate(intervals):
+        if widest > interval[2]:
+            break
+        last_index = i
 
         interval_index = np.random.randint(0, last_index + 1)
         interval_to_split = intervals.pop(interval_index)
@@ -184,13 +211,13 @@ def dynamic_midpoint(current_angles, sinogram):
             # Modulus to wrap over negative numbers.
             midpoint = (lower - half_width) % x
 
-        return midpoint
+    return midpoint
 
 
 def bootstrapped_angleselection(current_angles, sinogram):
 
     if np.count_nonzero(current_angles) <= 3:
-        return dynamic_midpoint(current_angles, sinogram)
+        return gap_angle_selection(current_angles, sinogram)
 
 
     sirt_iter = 100
@@ -227,7 +254,7 @@ def bootstrapped_angleselection(current_angles, sinogram):
           format(results[0][0], results[-1][0], results[0][0] / results[-1][0]))
 
     # TODO return something proper
-    return dynamic_midpoint(current_angles, sinogram)
+    return gap_angle_selection(current_angles, sinogram)
 
     
 def eval_angle_selection_alg(sinogram, all_angles, max_angles, select_angle):
@@ -266,7 +293,7 @@ def angle_selection_experiment(sinogram, all_angles, max_angles, iterations):
 
     results = collections.defaultdict(list)
 
-    methods = [(dynamic_midpoint, 'dynamic_midpoint', 'r'),
+    methods = [(gap_angle_selection, 'gap_angle_selection', 'r'),
                (random_angle_selection, 'random_angle_selection', 'b')]
     plt.figure(figsize = (10,10))
     for angle_selection in methods:
@@ -287,13 +314,59 @@ def angle_selection_experiment(sinogram, all_angles, max_angles, iterations):
         
 
 
-def run_exeperiment():
-    sinogram = np.zeros((100,900))
-    proj_angles = np.linspace(0, np.pi*99.0/100.0, 100)
-    sinogram_degredation(sinogram, proj_angles)
+def tv_inpaint_sinogram(sinogram, proj_angles, drop_rate):
+
+
+    # Start with all sinogram. Randomly drop say 90% of projections, i.e drop_rate = 0.9
+    # Use Total-Variation inpainting to fill in the missing rows in the sinograms.
+    # Use the inpainted sinogram and do a reconstrction.
+
+
+    x, y = sinogram.shape
 
 
 
+    known = np.zeros_like(sinogram)
+    known_projections = np.random.choice(x, round((1.0 - drop_rate) * x), replace=False)
+    known[known_projections] = sinogram[known_projections]
 
+    plt.subplot(121)
+    plt.imshow(known, cmap='gray')
+
+
+
+    restricted_reconstruction = ipi.reconstruct_image_sirt(proj_angles[known_projections],
+                                                           sinogram[known_projections],
+                                                           n_iter=500)
+
+    plt.subplot(122)
+    plt.imshow(restricted_reconstruction, cmap='gray')
+    
+    plt.show()
+    
+    # Set up TV-inpainting optimization problem
+    U = Variable(x, y)
+    obj = Minimize(tv(U))
+    constraints = [mul_elemwise(known, U) == mul_elemwise(known, sinogram)]
+    prob = Problem(obj, constraints)
+    # Use SCS to solve the problem.
+    prob.solve(verbose=True, solver=SCS, max_iters=2000)
+
+    np.save("U_value.npy", U.value)
+
+    restored_singram = U.value
+
+    plt.subplot(221)
+    plt.imshow(known, cmap='gray')
+    plt.subplot(222)
+    plt.imshow(restricted_reconstruction, cmap='gray')
+    plt.subplot(223)
+    plt.imshow(restored_singram, cmap='gray')
+    plt.subplot(224)
+    
+    tv_reconstruction = ipi.reconstruct_image_sirt(proj_angles, restored_singram,
+                                                   n_iter=500)
+    plt.imshow(tv_reconstruction, cmap='gray')
+    plt.show()
 
 
