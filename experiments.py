@@ -328,6 +328,12 @@ def tv_inpaint_sinogram(sinogram, proj_angles, drop_rate):
 
     known = np.zeros_like(sinogram)
     known_projections = np.random.choice(x, round((1.0 - drop_rate) * x), replace=False)
+
+
+    to_keep = round((1.0 - drop_rate) * x)
+
+    known_projections = np.linspace(0, x - 0.5, to_keep).astype(int)
+    
     known[known_projections] = sinogram[known_projections]
 
     plt.subplot(121)
@@ -356,6 +362,7 @@ def tv_inpaint_sinogram(sinogram, proj_angles, drop_rate):
 
     restored_singram = U.value
 
+    plt.figure(figsize = (13,13))
     plt.subplot(221)
     plt.imshow(known, cmap='gray')
     plt.subplot(222)
