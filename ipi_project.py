@@ -2,11 +2,19 @@ import numpy as np
 import os
 import glob
 import skimage.io
+import skimage.transform
 import matplotlib.pyplot as plt
 import re
 import astra
 import pylab
 from scipy.ndimage import center_of_mass
+import datetime
+
+import skimage.filters
+import experiments
+
+from skimage.restoration import denoise_tv_chambolle
+from skimage.restoration import inpaint_biharmonic
 
 
 def get_scan_image_dimension(directory):
@@ -42,7 +50,7 @@ def load_images(directory, slice_at):
     def load_darkfield():
         return skimage.io.imread(os.path.join(directory, 'di000000.tif'))[slice_at]
 
-    def preprocess_sinogram(sinogram, avg_flatfield, darkfield):
+    def preprocess_sinogram(sinogram, avg_flatfield, darkfield, verbose=False):
         # Flat field corrections
         sinogram = np.log((avg_flatfield - darkfield)/(sinogram - darkfield))
 
@@ -54,21 +62,46 @@ def load_images(directory, slice_at):
         true_com = y / 2.0
 
         shift_pixel = int(round(true_com - com))
-        
-        sinogram = np.roll(sinogram, shift_pixel, axis=1)
+
+        if verbose:
+            print("Sinogram shape: ", sinogram.shape)
+
+        min_delta = 10000.0
+        best_k = -1
+
+        # Assume we're at most 20 pixel away from centor of mass.
+        for k in range(1, 20):
+            com_k = sinogram[:,:-k].shape[1] / 2.0
+            calc_com_k = center_of_mass(sinogram[:,:-k])[1]
+
+            delta = np.abs(com_k - calc_com_k)
+
+            if delta < min_delta:
+                min_delta = delta
+                best_k = k
+
+            if verbose:
+                print("k = {}, com_k = {} calc_com_k = {}, delta = {}".format(
+                    k, com_k, calc_com_k, delta))
+
+        sinogram = sinogram[:,:-best_k]
 
         new_row_sum = np.sum(sinogram, axis=0)
         new_com = center_of_mass(new_row_sum)[0]
 
-        print("True COM ", true_com)
-        print("Scan COM", com)
-        print("Corrected", new_com)
+        if verbose:
+            print("True COM ", true_com)
+            print("Scan COM", com)
+            print("Corrected", new_com)
+            print("New True COM", sinogram.shape[1] / 2)
+            print("New sino shape", sinogram.shape)
+
         return sinogram
 
     avg_flatfield = load_averaged_flatfield()
     darkfield = load_darkfield()
     
-    preprocessed_sinogram = preprocess_sinogram(sinogram[:-1], avg_flatfield, darkfield)
+    preprocessed_sinogram = preprocess_sinogram(sinogram[:-1], avg_flatfield, darkfield, verbose=True)
         
     # Last scan angle == first scan angle, so we drop the last scan
     return preprocessed_sinogram, images
@@ -78,33 +111,18 @@ def load_cached_sinogram(filename):
     return np.load(filename)
 
 
-if __name__ == '__main__':
+def dist(img_a, img_b):
 
-    scans_directory = '/mnt/datasets1/fgustafsson/cwi_ct_scan/wooden_block/'
+    norm = np.linalg.norm(img_a - img_b)
 
-    x, y = get_scan_image_dimension(scans_directory)
+    return norm
 
-    # Load sinogram from the slice in the middle 
-    sinogram, images = load_images(scans_directory, slice_at=x // 2)
-    np.save("wooden_sinogram.npy", sinogram)
 
-    #sinogram = load_cached_sinogram("wooden_sinogram.npy")
+def reconstruct_image_sirt(proj_angles, sinogram, n_iter, show_reconstruction=False):
 
-    plt.imshow(sinogram, cmap='gray')
-    plt.show()
-
-    # As a sanity check look at first scan at angle 0
-    first_image = skimage.io.imread(images[0])
-    plt.imshow(first_image, cmap='gray')
-    plt.show()
-
-    scanned_angles = sinogram.shape[0]
-    scan_width = sinogram.shape[1]
-
-    n_iter = 100
-    vol_geom = astra.create_vol_geom(scan_width, scan_width)
-    proj_angles = np.linspace(0, (scanned_angles-1)*2.0*np.pi / scanned_angles, scanned_angles)
-
+    # Warning
+    # The geometry is hardcoded for the wooden sample.
+    
     # Scan geometry
     SDD = 498.0
     SOD = 313.001465
@@ -117,15 +135,65 @@ if __name__ == '__main__':
     ODD_p = SDD_p - SOD_p
     d_p = d / v
 
-
+    scan_width = sinogram.shape[1]
+    vol_geom = astra.create_vol_geom(scan_width, scan_width)
     proj_geom = astra.create_proj_geom('fanflat', d_p, scan_width, proj_angles, SOD_p, ODD_p)
-    proj_id = astra.create_projector('strip_fanflat', proj_geom, vol_geom)
+    #proj_id = astra.create_projector('strip_fanflat', proj_geom, vol_geom)
+    proj_id = astra.create_projector('cuda', proj_geom, vol_geom)
     W = astra.OpTomo(proj_id)
-    #f_inv  = W.reconstruct('SIRT_CUDA', sinogram, iterations=n_iter,extraOptions={'MinConstraint':0.0})
-    f_inv  = W.reconstruct('FBP', sinogram, extraOptions={'MinConstraint':0.0})
-    plt.figure(figsize = (10,10))
-    plt.imshow(f_inv, cmap='gray')
-    plt.imsave("reconstructed.png", f_inv, cmap='gray')
-    plt.show()
+
+    reconstruction = W.reconstruct('SIRT_CUDA',
+                                   sinogram,
+                                   iterations=n_iter,
+                                   extraOptions={'MinConstraint': 0.0})
+
+    if show_reconstruction:
+        plt.imshow(reconstruction, cmap='gray')
+        plt.show()
+
+    return reconstruction
+
+
+
+if __name__ == '__main__':
+
+    now = '{date:%Y_%m_%d_%H_%M_%S}.txt'.format( date=datetime.datetime.now() )
+
+    scans_directory = '/mnt/datasets1/fgustafsson/cwi_ct_scan/wooden_block/'
+
+    x, y = get_scan_image_dimension(scans_directory)
+
+    # Load sinogram from the slice in the middle 
+    sinogram, images = load_images(scans_directory, slice_at=300)
+
+
+    # Only use projection in range [0, \pi)
+    max_angle = np.pi
+    sinogram = sinogram[0:sinogram.shape[0]//2]
     
-    #Testcomment Francien number 2 (workcomp)
+    
+    np.save("wooden_sinogram.npy", sinogram)
+
+
+    first_image = skimage.io.imread(images[0])
+
+
+    scanned_angles = sinogram.shape[0]
+    sinogram = sinogram[0:scanned_angles]
+    scan_width = sinogram.shape[1]
+    
+    n_iter = 600
+    proj_angles = np.linspace(0, (scanned_angles-1)*max_angle / scanned_angles, scanned_angles)
+
+
+    experiments.tv_inpaint_sinogram(sinogram, proj_angles, drop_rate=0.95)
+    experiments.one_angle_reconstruction(sinogram, 42, verbose=True)
+    
+    experiments.angle_selection_experiment(sinogram, proj_angles, max_angles=20,                                           
+                                           iterations=10)
+    
+    #experiments.greedy_angleselection(sinogram, proj_angles)
+    experiments.sinogram_degredation(sinogram, proj_angles)
+    experiments.best_sparse_approximation(sinogram, proj_angles, sparse_size=15, trials=250)
+    
+
