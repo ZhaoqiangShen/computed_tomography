@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 import collections
 import itertools
 
-from cvxpy import *
 
+from cvxpy import *
+from topolar import topolar
 
 def plot_polar_angles(projection_angles, max_range):
     ax = plt.gca()
@@ -48,7 +49,7 @@ def sinogram_degredation(sinogram, projection_angles):
         distance = ipi.dist(full_reconstruction, reconstruction)
 
         results.append((p, distance))
-        print("||True - T_{}|| =  {}".format(p, distance))                                     
+        #print("||True - T_{}|| =  {}".format(p, distance))                                     
 
         prev = p
 
@@ -312,23 +313,22 @@ def angle_selection_experiment(sinogram, all_angles, max_angles, iterations):
     ax.set_ylabel('Reconstruction error (MSE)')
     plt.show()
 
+    
 def angle_subset_reconstruction(sinogram, sirt_iter, proj_angles):
-    #input the projection angles in degrees
+    # input the projection angles in degrees
     n_angles = len(proj_angles)
     scan_width = sinogram.shape[1]
-    
+
     sinogram_subset = np.zeros((n_angles, scan_width))
     for i in range(n_angles):
-        sinogram_subset[i,:] = sinogram[int(proj_angles[i]/360*1800),:] #or should we subtract 1?
+        # or should we subtract 1?
+        sinogram_subset[i, :] = sinogram[int(proj_angles[i]/360*1800), :]
 
     proj_angles = proj_angles/180*np.pi
-    
+
     plt.imshow(sinogram_subset, cmap='gray')
     plt.show()
-    
-    ipi.reconstruct_image_sirt(proj_angles, sinogram_subset, sirt_iter)
-
-    
+    return ipi.reconstruct_image_sirt(proj_angles, sinogram_subset, sirt_iter)
 
 
 def tv_inpaint_sinogram(sinogram, proj_angles, drop_rate):
@@ -393,4 +393,16 @@ def tv_inpaint_sinogram(sinogram, proj_angles, drop_rate):
     plt.imshow(tv_reconstruction, cmap='gray')
     plt.show()
 
+
+
+def image2polar(sinogram, proj_angles):
+    
+    full_reconstruction = ipi.reconstruct_image_sirt(proj_angles, sinogram, 1000)
+    # TODO find coordinate of smalled tree ring instead of hardcoding.
+    pol, _ = topolar(full_reconstruction, x_center=499.0, y_center=429.0)
+
+    plt.figure(figsize=(10,12))
+    
+    plt.imshow(pol[0:200], cmap='gray')
+    plt.show()
 
