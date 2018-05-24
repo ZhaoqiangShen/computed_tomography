@@ -34,12 +34,12 @@ def circle(pic_size, circle_nr, wall_thickness = None):
 
 
 
-def wobbly_transform(image):
+def wobbly_transform(image, amplitude=None):
 
     rows, cols = image.shape[0], image.shape[1]
 
-    src_cols = np.linspace(0, cols, 10)
-    src_rows = np.linspace(0, rows, 10)
+    src_cols = np.linspace(0, cols, 15)
+    src_rows = np.linspace(0, rows, 15)
     src_rows, src_cols = np.meshgrid(src_rows, src_cols)
     src = np.dstack([src_cols.flat, src_rows.flat])[0]
 
@@ -48,9 +48,13 @@ def wobbly_transform(image):
 
     rand_offset = 2.0*np.pi*np.random.rand()
 
+    if amplitude is None:
+        amplitude = 0.2*src.shape[0]
+    
     # TODO
     # The range of the random samples should depend on image size or be parameters.
-    dst_rows = src[:, 1] - np.sin(np.linspace(0, 3 * np.pi, src.shape[0]) + rand_offset) * 20 - (np.random.rand(src.shape[0]) - 0.5) * 10.0
+    dst_rows = (src[:, 1] - amplitude*np.sin(np.linspace(0, 3 * np.pi, src.shape[0]) + rand_offset)
+                - amplitude/2.0*(np.random.rand(src.shape[0]) - 0.5))
     
     #dst_rows = src[:, 1] - (np.random.rand(src.shape[0]) - 0.5) * 15.0
     
