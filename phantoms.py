@@ -45,7 +45,9 @@ def wobbly_transform(image):
     #dst_rows = src[:, 1] - np.sin(np.linspace(0, 3 * np.pi, src.shape[0])) * 10
 
     rand_offset = 2.0*np.pi*np.random.rand()
-    
+
+    # TODO
+    # The range of the random samples should depend on image size or be parameters.
     dst_rows = src[:, 1] - np.sin(np.linspace(0, 3 * np.pi, src.shape[0]) + rand_offset) * 20 - (np.random.rand(src.shape[0]) - 0.5) * 10.0
     
     #dst_rows = src[:, 1] - (np.random.rand(src.shape[0]) - 0.5) * 15.0
