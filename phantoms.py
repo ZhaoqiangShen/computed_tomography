@@ -7,8 +7,10 @@ Created on Thu May 24 14:57:09 2018
 """
 import numpy as np
 
-def circle(pic_size, circle_nr):
+def circle(pic_size, circle_nr, wall_thickness = None):
     
+    if wall_thickness == None:
+        wall_thickness = 0.02*pic_size
     
     
     shape = np.array([pic_size,pic_size])
@@ -19,7 +21,7 @@ def circle(pic_size, circle_nr):
 
     
     for i in range(circle_nr):
-        parameters = [pic_size*(circle_nr-i)/(2*circle_nr), 0.02*pic_size]
+        parameters = [pic_size*(circle_nr-i)/(2*circle_nr), wall_thickness]
         r0 = (parameters[0] - parameters[1])**2
         r1 = (parameters[0])**2
         vol = ((xx[:, None, None])**2 + (yy[None, :, None])**2)
