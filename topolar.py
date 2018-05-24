@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.ndimage.interpolation import geometric_transform
 
-def topolar(img, order=1, x_center=0, y_center=0):
+def topolar(img, order=1, x_center=None, y_center=None):
     """
     Transform img to its polar coordinate representation.
 
@@ -9,6 +9,13 @@ def topolar(img, order=1, x_center=0, y_center=0):
         Specify the spline interpolation order. 
         High orders may be slow for large images.
     """
+    
+    if x_center == None: 
+        x_center = img.shape[1]/2
+        
+    if y_center == None: 
+        y_center = img.shape[0]/2
+        
     # max_radius is the length of the diagonal 
     # from a corner to the mid-point of img.
     max_radius = 0.5*np.linalg.norm( img.shape )
