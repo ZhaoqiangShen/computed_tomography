@@ -8,17 +8,29 @@ import itertools
 from cvxpy import *
 from topolar import topolar
 
-def plot_polar_angles(projection_angles, max_range):
+def plot_polar_angles(projection_angles, max_range,dot_size):
+    #projection angles in radians
+    #use this code to create a picture:
+    #fig = plt.figure(figsize = (5,5))
+    #dot_size = 50
+    #ax = fig.add_subplot(111,projection = 'polar')
+    #ax.set_yticklabels([])
+    #ax.set_thetamin(0)
+    #ax.set_thetamax(180)
+    #plot_polar_angles(projection_angles, np.pi, dot_size)
+    
     ax = plt.gca()
 
-    x = projection_angles.shape[0]
+#    x = projection_angles.shape[0]
     
-    angles = np.linspace(0, (x-1)*max_range/x, x)
-
-    theta = angles[projection_angles > 0]
+#    angles = np.linspace(0, (x-1)*max_range/x, x)
+#
+#    theta = angles[projection_angles > 0]
+    
+    theta = projection_angles
     r = np.ones_like(theta)
 
-    ax.scatter(theta, r)
+    ax.scatter(theta, r, s= dot_size)
 
 
 def sinogram_degredation(sinogram, projection_angles):
