@@ -8,21 +8,24 @@ Created on Thu May 24 14:57:09 2018
 import numpy as np
 from skimage.transform import PiecewiseAffineTransform, warp
 
-def circle(pic_size, circle_nr, wall_thickness = None):
+def circle(pic_size, circle_nr, off_center_x = 0,off_center_y = 0, wall_thickness = None):
+    #off_center_x positive is move to the left, negative move to the right
+    #off_center y positive is move upwards, negative is move downward
+    #off_center maximum 10% of picture width
     
     if wall_thickness == None:
         wall_thickness = 0.02*pic_size
     
     
     shape = np.array([pic_size,pic_size])
-    xx = np.arange(0, shape[0]) - shape[0] // 2
-    yy = np.arange(0, shape[1]) - shape[1] // 2
+    xx = np.arange(0+off_center_y, shape[0]+off_center_y) - shape[0] // 2
+    yy = np.arange(0+off_center_x, shape[1]+off_center_x) - shape[1] // 2
     
     all_circles = np.zeros((pic_size,pic_size))
 
     
     for i in range(circle_nr):
-        parameters = [pic_size*(circle_nr-i)/(2*circle_nr), wall_thickness]
+        parameters = [pic_size*(circle_nr-i)/(2*circle_nr)-0.1*pic_size, wall_thickness]
         r0 = (parameters[0] - parameters[1])**2
         r1 = (parameters[0])**2
         vol = ((xx[:, None, None])**2 + (yy[None, :, None])**2)
