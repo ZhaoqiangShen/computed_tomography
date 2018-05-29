@@ -46,16 +46,11 @@ def wobbly_transform(image, amplitude=None):
     src_rows, src_cols = np.meshgrid(src_rows, src_cols)
     src = np.dstack([src_cols.flat, src_rows.flat])[0]
 
-    # add sinusoidal oscillation to row coordinates
-    #dst_rows = src[:, 1] - np.sin(np.linspace(0, 3 * np.pi, src.shape[0])) * 10
-
     rand_offset = 2.0*np.pi*np.random.rand()
 
     if amplitude is None:
         amplitude = 0.2*src.shape[0]
     
-    # TODO
-    # The range of the random samples should depend on image size or be parameters.
     dst_rows = (src[:, 1] - amplitude*np.sin(np.linspace(0, 3 * np.pi, src.shape[0]) + rand_offset)
                 - amplitude/2.0*(np.random.rand(src.shape[0]) - 0.5))
     
@@ -64,10 +59,7 @@ def wobbly_transform(image, amplitude=None):
     
     dst_cols = src[:, 0]
 
-    #dst_rows *= 1.5
-    #dst_rows -= 1.5 * 50
     dst = np.vstack([dst_cols, dst_rows]).T
-
 
     tform = PiecewiseAffineTransform()
     tform.estimate(src, dst)
