@@ -10,15 +10,21 @@ import numpy as np
 from phantoms import circle
 import pylab
 
-size = 64
-length = size**2
-T = np.zeros((length,length))
+def create_T(size):
 
-for i in range(length):
-    i_vec = np.zeros(length)
-    i_vec[i] = 1
-    T[:,i] = topolar(np.reshape(i_vec,(size,size)))[0].ravel()
+    length = size**2
+    T = np.zeros((length,length))
+
+    for i in range(length):
+        i_vec = np.zeros(length)
+        i_vec[i] = 1
+        T[:,i] = topolar(np.reshape(i_vec,(size,size)))[0].ravel()
+    return T
     
+#%%
+    
+size = 64
+T = create_T(size)
 test = circle(size, 4, wall_thickness = 1)
 pylab.imshow(test) 
 pylab.show()
