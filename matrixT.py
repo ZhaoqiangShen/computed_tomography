@@ -27,7 +27,7 @@ def create_Dx(size):
 
     # Column version
     Dx = np.diag([1]*size) -1 * np.diag([1]*(size -1), k=1)
-    Dx[0, -1] = -1.0
+    Dx[-1, 0] = -1.0
 
     # Operator that take whole image as one vector (size**2)
     Dx_big = scipy.sparse.block_diag([Dx for i in range(size)])
