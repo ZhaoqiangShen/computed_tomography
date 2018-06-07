@@ -133,14 +133,25 @@ def best_sparse_approximation(sinogram, projection_angles, sparse_size, trials):
     plt.imshow(worst_reconstruction[1], cmap='gray')
     plt.subplot(233)
     plt.imshow(np.abs(best_reconstruction[1] - worst_reconstruction[1]), cmap='gray')
-    plt.subplot(234, projection='polar')
-    plot_polar_angles(best_angles, np.pi)
-    plt.subplot(235, projection='polar')
-    plot_polar_angles(worst_angles, np.pi)
+    #plt.subplot(234, projection='polar')
+    #plot_polar_angles(best_angles)
+    #plt.subplot(235, projection='polar')
+    #plot_polar_angles(worst_angles)
 
     plt.subplot(236)
     plt.plot(results, 'o')
 
+    plt.show()
+
+    def make_angles(angles):
+        length = angles.shape[0]
+        return 180.0 * np.where(angles > 0)[0] / length 
+
+    
+    plot_polar_angles(make_angles(best_angles))
+    plt.show()
+    #plt.subplot(235, projection='polar')
+    plot_polar_angles(make_angles(worst_angles))
     plt.show()
 
 
@@ -308,13 +319,20 @@ def angle_selection_experiment(sinogram, all_angles, max_angles, iterations):
 
             results[angle_selection[1]].append(result)
 
+
+    plot_handles = dict()
     for angle_selection in methods:
-        for result in results[angle_selection[1]]:
-            plt.plot(result, angle_selection[2])
+        for i, result in enumerate(results[angle_selection[1]]):
+            if i == 0:
+                plt.plot(result, angle_selection[2], label=angle_selection[1])
+            else:
+                plt.plot(result, angle_selection[2])
 
     ax = plt.gca()
     ax.set_xlabel('Number of projections')
     ax.set_ylabel('Reconstruction error (MSE)')
+    plt.legend()
+    
     plt.show()
 
     

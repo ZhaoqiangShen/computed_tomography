@@ -12,6 +12,8 @@ class TestOperators(unittest.TestCase):
         
         self.T = matrixT.create_T(self.size)
         self.Dx = matrixT.create_Dx(self.size)
+        self.keep_rows = self.size // 2
+        self.Mask = matrixT.create_Mask(self.size, keep_rows=self.keep_rows)
 
     def test_topolar_T(self):
         pass
@@ -65,6 +67,23 @@ class TestOperators(unittest.TestCase):
         operator_circle_polar_dx = operator_circle_polar_dx.reshape(self.size, self.size)
 
         self.assertTrue(np.allclose(manual_circle_polar_dx, operator_circle_polar_dx))
+
+
+    def test_mask(self):
+
+        image = np.ones((self.size, self.size))
+
+        masked_image = np.zeros_like(image)
+        masked_image[0:self.keep_rows] = image[0:self.keep_rows]
+
+        masked_image_by_operator = (self.Mask @ image.ravel()).reshape((self.size, self.size))
+
+        print(image)
+        print(masked_image)
+        print(masked_image_by_operator)
+        self.assertTrue(np.allclose(masked_image_by_operator, masked_image))
+        
+        
 
 if __name__ == '__main__':
     unittest.main()

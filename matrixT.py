@@ -11,6 +11,9 @@ from phantoms import circle
 import pylab
 import scipy.sparse
 
+from skimage.filters import gaussian
+
+
 def create_T(size):
 
     length = size**2
@@ -21,6 +24,20 @@ def create_T(size):
         i_vec[i] = 1
         T[:,i] = topolar(np.reshape(i_vec,(size,size)))[0].ravel()
     return T
+
+def create_Blur(size, sigma):
+
+    length = size**2
+    G = np.zeros((length, length))
+
+
+    for i in range(length):
+        i_vec = np.zeros(length)
+        i_vec[i] = 1
+        G[:,i] = gaussian(i_vec.reshape(size,size),
+                          sigma=sigma,
+                          preserve_range=True).ravel()
+    return G
 
 
 def create_Dx(size):
@@ -33,6 +50,15 @@ def create_Dx(size):
     Dx_big = scipy.sparse.block_diag([Dx for i in range(size)])
 
     return Dx_big.T
+
+def create_Mask(size, keep_rows):
+    # Keep the first 'keep_rows' in a 2D image,
+    # Set rest to zero.
+
+    assert keep_rows <= size
+
+    return scipy.sparse.diags([1]*keep_rows*size + [0]*(size - keep_rows)*size)
+
 
 if __file__ == '__main__':
 
