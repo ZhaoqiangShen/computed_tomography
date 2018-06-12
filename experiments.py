@@ -353,7 +353,7 @@ def angle_subset_reconstruction(sinogram, sirt_iter, proj_angles):
     return ipi.reconstruct_image_sirt(proj_angles, sinogram_subset, sirt_iter)
 
 
-def tv_inpaint_sinogram(sinogram, proj_angles, drop_rate):
+def tv_inpaint_sinogram(sinogram, proj_angles, drop_rate, show=False):
 
 
     # Start with all sinogram. Randomly drop say 90% of projections, i.e drop_rate = 0.9
@@ -363,57 +363,90 @@ def tv_inpaint_sinogram(sinogram, proj_angles, drop_rate):
 
     x, y = sinogram.shape
 
-
-
     known = np.zeros_like(sinogram)
-    known_projections = np.random.choice(x, round((1.0 - drop_rate) * x), replace=False)
-
 
     to_keep = round((1.0 - drop_rate) * x)
 
     known_projections = np.linspace(0, x - 0.5, to_keep).astype(int)
+
+    print(drop_rate)
+    print(known_projections)
     
     known[known_projections] = sinogram[known_projections]
 
-    plt.subplot(121)
-    plt.imshow(known, cmap='gray')
+    if show:
+        plt.subplot(121)
+        plt.imshow(known, cmap='gray')
 
-
+    np.save("restricted_sinogram_{}_{}".format(to_keep, x), known)
 
     restricted_reconstruction = ipi.reconstruct_image_sirt(proj_angles[known_projections],
                                                            sinogram[known_projections],
                                                            n_iter=500)
 
-    plt.subplot(122)
-    plt.imshow(restricted_reconstruction, cmap='gray')
+    if show:
+        plt.subplot(122)
+        plt.imshow(restricted_reconstruction, cmap='gray')
     
-    plt.show()
+        plt.show()
     
     # Set up TV-inpainting optimization problem
-    U = Variable(x, y)
+    U = Variable(shape=(x, y))
     obj = Minimize(tv(U))
-    constraints = [mul_elemwise(known, U) == mul_elemwise(known, sinogram)]
+    constraints = [multiply(known, U) == multiply(known, sinogram)]
     prob = Problem(obj, constraints)
-    # Use SCS to solve the problem.
-    prob.solve(verbose=True, solver=SCS, max_iters=2000)
+    prob.solve(verbose=True, solver=MOSEK)
 
-    np.save("U_value.npy", U.value)
+    np.save("U_value_{}_{}.npy".format(to_keep,x), U.value)
 
     restored_singram = U.value
 
-    plt.figure(figsize = (13,13))
-    plt.subplot(221)
-    plt.imshow(known, cmap='gray')
-    plt.subplot(222)
-    plt.imshow(restricted_reconstruction, cmap='gray')
-    plt.subplot(223)
-    plt.imshow(restored_singram, cmap='gray')
-    plt.subplot(224)
+    if show:
+         plt.figure(figsize = (13,13))
+         plt.subplot(221)
+         plt.imshow(known, cmap='gray')
+         plt.subplot(222)
+         plt.imshow(restricted_reconstruction, cmap='gray')
+         plt.subplot(223)
+         plt.imshow(restored_singram, cmap='gray')
+         plt.subplot(224)
     
     tv_reconstruction = ipi.reconstruct_image_sirt(proj_angles, restored_singram,
                                                    n_iter=500)
-    plt.imshow(tv_reconstruction, cmap='gray')
-    plt.show()
+
+    np.save("restricted_reconstruction_{}_{}.npy".format(to_keep, x), restricted_reconstruction)
+    np.save("tv_reconstruction_{}_{}.npy".format(to_keep, x), tv_reconstruction)
+
+    if show:
+        plt.imshow(tv_reconstruction, cmap='gray')
+        plt.show()
+
+    return tv_reconstruction, restricted_reconstruction
+
+def tv_experiments(sinogram, proj_angles, drop_rates):
+
+    sirt_iter = 500
+    full_reconstruction = ipi.reconstruct_image_sirt(proj_angles,
+                                                     sinogram,
+                                                     sirt_iter)
+
+    np.save("full_reconstruction_1800_1800.npy", full_reconstruction)
+    exit(1)
+    
+    results = []
+    with open("results_tv.txt", 'w') as result_file:
+        for drop_rate in drop_rates:
+            tv, restricted = tv_inpaint_sinogram(sinogram, proj_angles, drop_rate=drop_rate)
+            mse_true = np.linalg.norm(full_reconstruction - tv)
+            mse_restricted = np.linalg.norm(tv - restricted)
+            mse_true_restricted = np.linalg.norm(restricted - full_reconstruction)
+
+            print("================", file=result_file)
+            print("Drop rate: {}".format(drop_rate), file=result_file)
+            print("||TV - True|| = {}".format(mse_true), file=result_file)
+            print("||TV - Restricted|| = {}".format(mse_restricted), file=result_file)
+            print("||True - Restricted|| = {}".format(mse_true_restricted), file=result_file)
+            results.append([drop_rate, tv, restricted, mse_true, mse_restricted, mse_true_restricted])
 
 
 
@@ -428,3 +461,18 @@ def image2polar(sinogram, proj_angles):
     plt.imshow(pol[0:200], cmap='gray')
     plt.show()
 
+
+
+def eqi_reconstruction(sinogram, proj_angles, eqi_angles):
+
+    x, y = sinogram.shape
+
+    known_projections = np.linspace(0, x - 0.5, eqi_angles).astype(int)
+
+    restricted_reconstruction = ipi.reconstruct_image_sirt(proj_angles[known_projections],
+                                                           sinogram[known_projections],
+                                                           n_iter=500)
+
+
+    np.save("eqi_reconstruction_{}_{}.npy".format(eqi_angles, x), restricted_reconstruction)
+    
